@@ -1,0 +1,5 @@
+*~
+*.pyc
+
+# Don't include the settings file.
+settings.py*
