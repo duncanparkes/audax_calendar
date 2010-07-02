@@ -20,7 +20,7 @@ To run your own version of this scraper
 
     python AudaxCalendar.py
 
-periodically - I run it once per day.
+  periodically - I run it once per day.
 
 
 Prerequisites
