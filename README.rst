@@ -12,9 +12,11 @@ Where an event is not in the UK, the time is probably local time.
 Everything here has been screenscraped from the audax website. 
 If you see anything that has gone wrong, please drop me an email.
 
-If you wanted to set a copy of this, copy ``settings_example.py`` 
-to ``settings.py`` and put in your own details. 
-Then set up a cron job to run::
+To run your own version of this scraper
+
+* Clone the repository
+* Copy ``settings_example.py`` to ``settings.py`` and put in your own details. 
+* Set up a cron job to run::
 
     python AudaxCalendar.py
 
