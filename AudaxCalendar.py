@@ -71,25 +71,34 @@ def InsertSingleEvent(calendar_service,
 
     try:
         new_event = calendar_service.InsertEvent(event, calendar_name)
+        success = True
     except:
-      import pdb;pdb.set_trace()
+        success = False
 
-    print 'New single event inserted: %s' % (new_event.id.text,)
-    print '\tEvent edit URL: %s' % (new_event.GetEditLink().href,)
-    print '\tEvent HTML URL: %s' % (new_event.GetHtmlLink().href,)
-    
-    return new_event
+    if success:
+        print 'New single event inserted: %s' % (new_event.id.text,)
+        print '\tEvent edit URL: %s' % (new_event.GetEditLink().href,)
+        print '\tEvent HTML URL: %s' % (new_event.GetHtmlLink().href,)
+        
+        return new_event
+    else:
+        print '************************************************************'
+        print 'Failed to insert event'
+        print 'with title: %s' %repr(event.title)
+        return None
 
 
 calendar_location = "http://www.aukweb.net/cal/calist5.php"
 example_file_name = "source/calist5.php"
 
+first_line_regex = re.compile("""<b><span class=\"red\">(?:([A-Z]?)\ ?)\ ?</span>(?:<span class='highlight'>)?\ ?(\d*)\ *(\d* [A-z]*)\ ?(?:</span>)?<a class=\"navy\" href=\"calsolo.php\?Ride=(D?\d*-\d*)\">\ +(.*)\ ?</a>\ *(.*)</b>""")
 
-first_line_regex = re.compile("""<b><span class=\"red\">(?:([A-Z]?)\ ?)\ </span>\ ?(\d*)  (\d* [A-z]*) <a class=\"navy\" href=\"calsolo.php\?Ride=(D?\d*-\d*)\"> (.*) </a>   (.*)</b>""")
+# The colons in the time part of this regex are to cope with things like
+# The Easter Fleches, which have no fixed start time
+# \.? in the hours is to deal with a particular typo:
+# '7.:00  Sat  BRM [PBP]  &pound;3.50&nbsp;&nbsp;&nbsp;&nbsp;Pam  Pilbeam'
+second_line_regex = re.compile("""([\d:]{1,2})\.?:?([\d:]{2})\ +([A-z]*)\ +(AA\d*\.?\d?\d?)?\ *(?:\[(\d*)m\]\ \ )?([A-Z][A-Z][A-Z]?(?: \[[A-Z]*\])?)?  .*(\d*\.?\d*).*\&nbsp;\&nbsp;\&nbsp;\&nbsp;(.*)""")
 
-second_line_regex = re.compile("""(\d\d):?(\d\d)  ([A-z]*)  (AA\d*\.?\d?\d?)?\ ?\ ?(?:\[(\d*)m\]\ \ )?([A-Z][A-Z][A-Z]?)?  .*(\d*\.?\d*).*\&nbsp;\&nbsp;\&nbsp;\&nbsp;(.*)""")
-
-                              
 class AudaxEvent:
     def __init__(self):
         self.status = None
@@ -172,6 +181,14 @@ class EventsParser:
             elif second_line_match is not None:
                 event._start_hours, event._start_minutes, event._day, event.AA_points, event.climb, event.code, event.cost, event.organiser = second_line_match.groups()
 
+                # To cope with The Easter Fleches, which has no fixed start time, and comes out with start time
+                # of :::::, if we see two colons for these, set the start hours and minutes to zero.
+                no_times = event._start_hours == '::'
+
+                if no_times:
+                    event._start_hours = 0
+                    event._start_minutes = 0
+
                 # At this point, we have a date without a year, a day of
                 # the week, and a start time. This is enough to calculate
                 # the year without bothering the audax webserver for the
@@ -192,10 +209,13 @@ class EventsParser:
                     print "Cannot calculate year"
 
                 event.start_datetime = start_datetime
-                
-                duration_in_hours = int(event.distance)/minimum_speed
 
-                event.end_datetime = event.start_datetime + datetime.timedelta(hours=duration_in_hours)
+                if no_times:
+                    # Hopefully, adding one day to this will get it displayed as an all day event.
+                    event.end_datetime = event.start_datetime + datetime.timedelta(days=1)
+                else:
+                    duration_in_hours = int(event.distance)/minimum_speed
+                    event.end_datetime = event.start_datetime + datetime.timedelta(hours=duration_in_hours)
                 
                 self.events_list.append(event)
                 event = AudaxEvent()
@@ -293,13 +313,12 @@ def main():
             # We need to add the event.
         
             googleapi_event = InsertSingleEvent(calendar_service, calendar_name, event.getTitleString(), event.getContentString() , event.place, event.start_datetime, event.end_datetime)
-        
-            # so that we can check if an event has already been added, etc
-            # we'll add an id to them.
-            googleapi_event.extended_property.append(gdata.calendar.ExtendedProperty(name=event_id_name, value=event.id))
-            calendar_service.UpdateEvent(googleapi_event.GetEditLink().href, googleapi_event)
-
-
+            
+            if googleapi_event:
+                # so that we can check if an event has already been added, etc
+                # we'll add an id to them.
+                googleapi_event.extended_property.append(gdata.calendar.ExtendedProperty(name=event_id_name, value=event.id))
+                calendar_service.UpdateEvent(googleapi_event.GetEditLink().href, googleapi_event)
 
 
 if __name__ == "__main__":
