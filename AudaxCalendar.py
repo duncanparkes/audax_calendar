@@ -18,9 +18,7 @@ import dateutil.parser
 
 calendar_name = '/calendar/feeds/default/private/full'
 event_id_name = 'ukaudaxcalendar#event_id'
-event_status_name = 'ukaudaxcaledar#event_status'
 
-event_link_format = "http://www.aukweb.net/cal/calsolo.php?Ride=%s"
 google_api_when_date_format = '%Y-%m-%dT%H:%M:%S.000'
 
 # This will be used everywhere as the minimum speed
