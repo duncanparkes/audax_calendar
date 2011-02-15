@@ -4,6 +4,7 @@ from __future__ import division
 
 import re
 import datetime
+import urlparse
 
 from urllib2 import urlopen
 
@@ -11,6 +12,9 @@ import gdata.calendar.service
 import atom.service
 
 from settings import google_username, google_password, google_source
+
+import BeautifulSoup
+import dateutil.parser
 
 calendar_name = '/calendar/feeds/default/private/full'
 event_id_name = 'ukaudaxcalendar#event_id'
@@ -88,16 +92,8 @@ def InsertSingleEvent(calendar_service,
         return None
 
 
-calendar_location = "http://www.aukweb.net/cal/calist5.php"
-example_file_name = "source/calist5.php"
-
-first_line_regex = re.compile("""<b><span class=\"red\">(?:([A-Z]?)\ ?)\ ?</span>(?:<span class='highlight'>)?\ ?(\d*)\ *(\d* [A-z]*)\ ?(?:</span>)?<a class=\"navy\" href=\"calsolo.php\?Ride=(D?\d*-\d*)\">\ +(.*)\ ?</a>\ *(.*)</b>""")
-
-# The colons in the time part of this regex are to cope with things like
-# The Easter Fleches, which have no fixed start time
-# \.? in the hours is to deal with a particular typo:
-# '7.:00  Sat  BRM [PBP]  &pound;3.50&nbsp;&nbsp;&nbsp;&nbsp;Pam  Pilbeam'
-second_line_regex = re.compile("""([\d:]{1,2})\.?:?([\d:]{2})\ +([A-z]*)\ +(AA\d*\.?\d?\d?)?\ *(?:\[(\d*)m\]\ \ )?([A-Z][A-Z][A-Z]?(?: \[[A-Z]*\])?)?  .*(\d*\.?\d*).*\&nbsp;\&nbsp;\&nbsp;\&nbsp;(.*)""")
+calendar_url = "http://www.aukweb.net/events/?From=13%2F02%2F2011&To=24&Days=&Category=&Dist_min=&Dist_max=&Aaa=&Region="
+#example_file_name = "source/calist5.php"
 
 class AudaxEvent:
     def __init__(self):
@@ -115,6 +111,8 @@ class AudaxEvent:
         self.AA_points = None
         self.climb = None
         self.code = None
+        self.pbp = False
+        self.paypal = False
         self.cost = None
         self.organiser = None
 
@@ -147,9 +145,9 @@ class AudaxEvent:
                                     '<a href="%s">%s</a>' %(self.link, self.name),
                                     "Distance: %skm" %(self.distance),
                                     "Start: %s" %(self._start_time),
-                                    "%s %s" %(self.code, self.AA_points or ''),
+                                    "%s %s %s" %(self.code, '[PBP]' if self.pbp else '', 'AA%s' %self.AA_points if self.AA_points else ''),
                                     climb_bit,
-                                    "Cost: %s" %(self.cost),
+                                    "Cost: &pound;%.2f %s" %(self.cost, '(paypal)' if self.paypal else ''),
                                     "Organiser: %s" %(self.organiser)
                                     ] if x])
 
@@ -157,72 +155,6 @@ class AudaxEvent:
       
     def __repr__(self):
         return repr((self.distance, self.name, self.organiser, self.start_datetime, self.end_datetime))
-
-
-class EventsParser:
-    def __init__(self, events_list):
-        """This class is used to parse the events from the audax website.
-        
-        events_list should be a list of first and second lines, alternating,
-        which can be sorted with regular expressions."""
-
-        self.events_list = []
-        event = AudaxEvent()
-
-        for line in events_list:
-            first_line_match = first_line_regex.match(line)
-            second_line_match = second_line_regex.match(line)
-            
-            if first_line_match is not None:
-                event.status, event.distance, event._date, event.id, event.place, event.name = first_line_match.groups()
-
-                event.link = event_link_format %(event.id)
-                
-            elif second_line_match is not None:
-                event._start_hours, event._start_minutes, event._day, event.AA_points, event.climb, event.code, event.cost, event.organiser = second_line_match.groups()
-
-                # To cope with The Easter Fleches, which has no fixed start time, and comes out with start time
-                # of :::::, if we see two colons for these, set the start hours and minutes to zero.
-                no_times = event._start_hours == '::'
-
-                if no_times:
-                    event._start_hours = 0
-                    event._start_minutes = 0
-
-                # At this point, we have a date without a year, a day of
-                # the week, and a start time. This is enough to calculate
-                # the year without bothering the audax webserver for the
-                # event details since the year will always be last year, this year, or
-                # next year, and we have the day of the week.
-
-                this_year = datetime.datetime.today().year
-
-                start_datetime = datetime.datetime.strptime("%s %s %s:%s" %(event._date, this_year, event._start_hours, event._start_minutes), "%d %b %Y %H:%M")
-
-                if start_datetime.strftime("%a") != event._day:
-                    start_datetime = datetime.datetime.strptime("%s %s %s:%s" %(event._date, this_year + 1, event._start_hours, event._start_minutes), "%d %b %Y %H:%M")
-                    
-                if start_datetime.strftime("%a") != event._day:
-                    start_datetime = datetime.datetime.strptime("%s %s %s:%s" %(event._date, this_year - 1, event._start_hours, event._start_minutes), "%d %b %Y %H:%M")
-                    
-                if start_datetime.strftime("%a") != event._day:
-                    print "Cannot calculate year"
-
-                event.start_datetime = start_datetime
-
-                if no_times:
-                    # Hopefully, adding one day to this will get it displayed as an all day event.
-                    event.end_datetime = event.start_datetime + datetime.timedelta(days=1)
-                else:
-                    duration_in_hours = int(event.distance)/minimum_speed
-                    event.end_datetime = event.start_datetime + datetime.timedelta(hours=duration_in_hours)
-                
-                self.events_list.append(event)
-                event = AudaxEvent()
-            else:
-                import pdb;pdb.set_trace()
-                print "No match"
-
 
 def main():
 
@@ -250,28 +182,96 @@ def main():
             event_dict[extended_property.value] = an_event
           #print an_event.when.start_time, an_enent.when.end_time
 
-    print event_dict
+#    print event_dict
 
     # 3) get list of events from audax website
+    events_list = []
   
     #example_file = open(example_file_name)
     #file_contents = example_file.read()
-    url_obj = urlopen(calendar_location)
+    url_obj = urlopen(calendar_url)
     file_contents = url_obj.read()
 
-    useful_bit = file_contents.split("<pre>")[1].split("</pre>")[0].split("""<!--To see events before the first date shown, adjust the left Date Window</b>-->
-</span>
-""")[1]
+    # In a nasty hacky way, let's replace accented characters with
+    # their unaccented friends.
+    file_contents = re.sub('\xea', 'e', file_contents)
 
-    split_on_newlines = [x for x in [x.strip() for x in useful_bit.splitlines()] if x.strip() !="</span>"]
+    soup = BeautifulSoup.BeautifulSoup(file_contents, convertEntities=BeautifulSoup.BeautifulStoneSoup.ALL_ENTITIES)
+    events_div = soup.find(None, {'id': 'eventlist'})
     
-    events_parser = EventsParser(split_on_newlines)
-    
-    # 4) Work out which events to add to the Calendar, which to modify,
-    #    and which to mark as cancelled.
+    days = events_div.findAll('div', {'class': re.compile('^day.*')})
 
-    for event in events_parser.events_list:
+    for day in days:
+        event_date = dateutil.parser.parse(day.h4.string, fuzzy=True)
 
+        events = day.findAll('div', {'class': re.compile('^event.*')})
+
+        for event_soup in events:
+            event = AudaxEvent()
+
+            relative_link = event_soup.a['href']
+            event.id = relative_link.split('/')[1]
+            event.link = urlparse.urljoin(calendar_url, relative_link)
+
+            bolds = event_soup.findAll('b')
+            event.code = bolds[0].string.strip()
+            
+            paypal_img = bolds[1].img
+            if paypal_img:
+                event.paypal = True
+                paypal_img.extract()
+                
+            string1 = ' '.join(bolds[1].contents)
+            # The \.? in the middle of the time is to cope with this erroneous time format:
+            # u' 400km       7.:00 from Denmead    Denmead SR Series'
+            first_string_regex = re.compile(r'\s*(\d*)km\s*([\d:]{1,2})\.?:?([\d:]{2})\s*from\s*([\w ,\'/\.&\-()]*?)\s{2,}([\w ]*)')
+
+            match = first_string_regex.match(string1)
+
+            try:
+                distance_string, start_hours, start_minutes, event.place, event.name = match.groups()
+            except:
+                import pdb;pdb.set_trace()
+
+            event.distance = int(distance_string)
+
+            # This means the event is a Fleches, or something.
+            no_times = start_hours == '::'
+            
+            if no_times:
+                event_time = datetime.time(0)
+            else:
+                event_time = datetime.time(int(start_hours), int(start_minutes))
+
+            event.start_datetime = datetime.datetime.combine(event_date, event_time)
+            
+            if no_times:
+                event.end_datetime = event.start_datetime + datetime.timedelta(days=1)
+            else:
+                event.end_datetime = event.start_datetime + datetime.timedelta(hours=event.distance/minimum_speed)
+            
+            string2 = bolds[1].nextSibling
+
+            second_string_regex = re.compile(r'\n\s*([A-Z]*)\s*(?:\[(PBP)\])?\s*(?:AA(\d*\.?\d*))?\s*(?:\[(\d*)m\])?\s*\xa3(\d*\.?\d*)\s*(.*)')
+            match2 = second_string_regex.match(string2)
+            try:
+                event.code, pbp_string, aa_points_string, climb_string, cost_string, organiser_string = match2.groups()
+            except:
+                import pdb;pdb.set_trace()
+
+            if pbp_string:
+                event.pbp = True
+            if aa_points_string: 
+                event.AA_points = float(aa_points_string)
+            if climb_string: 
+                event.climb = int(climb_string)
+
+            event.cost = float(cost_string)
+            event.organiser = ' '.join(organiser_string.split())
+
+            events_list.append(event)
+
+    for event in events_list:
         # Have we added an event with this id before?
         # if so, we'll check that the content string of the event hasn't changed,
         # and if it has, we'll change it.
