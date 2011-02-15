@@ -122,7 +122,7 @@ class AudaxEvent:
         else:
             cancelled_bit = ""
         
-        title_string = "%s%s %s" %(cancelled_bit, self.distance, self.name)
+        title_string = "%s%s %s: %s" %(cancelled_bit, self.distance, self.place, self.name)
 
         return title_string
 
