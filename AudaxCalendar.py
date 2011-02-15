@@ -143,9 +143,9 @@ class AudaxEvent:
                                     '<a href="%s">%s</a>' %(self.link, self.name),
                                     "Distance: %skm" %(self.distance),
                                     "Start: %s" %(self._start_time),
-                                    "%s %s %s" %(self.code, '[PBP]' if self.pbp else '', 'AA%s' %self.AA_points if self.AA_points else ''),
+                                    "%s%s%s" %(self.code, ' [PBP]' if self.pbp else '', ' AA%s' %self.AA_points if self.AA_points else ''),
                                     climb_bit,
-                                    "Cost: &pound;%.2f %s" %(self.cost, '(paypal)' if self.paypal else ''),
+                                    "Cost: &pound;%.2f%s" %(self.cost, ' (paypal)' if self.paypal else ''),
                                     "Organiser: %s" %(self.organiser)
                                     ] if x])
 
