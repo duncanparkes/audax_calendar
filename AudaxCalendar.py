@@ -239,6 +239,7 @@ def main():
             if no_times:
                 event_time = datetime.time(0)
             else:
+                start_hours = start_hours.strip(':')
                 event_time = datetime.time(int(start_hours), int(start_minutes))
 
             event.start_datetime = datetime.datetime.combine(event_date, event_time)
