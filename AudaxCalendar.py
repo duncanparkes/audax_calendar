@@ -217,7 +217,8 @@ def main():
             event = AudaxEvent()
 
             relative_link = event_soup.a['href']
-            event.id = relative_link.split('/')[1]
+#            import pdb;pdb.set_trace()
+            event.id = relative_link.split('/')[2]
             event.link = urlparse.urljoin(calendar_url, relative_link)
 
             bolds = event_soup.findAll('b')
