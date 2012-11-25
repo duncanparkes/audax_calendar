@@ -251,6 +251,9 @@ def main():
             
             string2 = bolds[1].nextSibling
 
+            # Botch for the El Supremo event on 29/01/2012
+            string2 = string2.replace(u'\xa3ONLY \u01411.00', u'\xa31.00')
+
             second_string_regex = re.compile(r'\n\s*([A-Z]*)\s*(?:\[(PBP)\])?\s*(?:AA(\d*\.?\d*))?\s*(?:\[(\d*)m\])?\s*\xa3(\d*\.?\d*)\s*(.*)')
             match2 = second_string_regex.match(string2)
             try:
