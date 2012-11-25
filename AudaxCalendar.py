@@ -296,7 +296,7 @@ def main():
 
             if google_api_event.content.text != new_content_string:
               # We need to update the event.
-              print "Updating event %s with new content string"
+              print "Updating event %s with new content string" % event.id
               print new_content_string
               google_api_event.title.text = event.getTitleString()
               google_api_event.content.text = new_content_string
