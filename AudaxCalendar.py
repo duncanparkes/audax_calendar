@@ -90,7 +90,9 @@ def InsertSingleEvent(calendar_service,
         return None
 
 
-calendar_url = "http://www.aukweb.net/events/?From=13%2F02%2F2011&To=24&Days=&Category=&Dist_min=&Dist_max=&Aaa=&Region="
+#calendar_url = "http://www.aukweb.net/events/?From=13%2F02%2F2011&To=24&Days=&Category=&Dist_min=&Dist_max=&Aaa=&Region="
+
+calendar_url_template = "http://www.aukweb.net/events/?From=%s&To=24&Days=&Category=&Dist_min=&Dist_max=&Aaa=&Region="
 #example_file_name = "source/calist5.php"
 
 class AudaxEvent:
@@ -170,8 +172,10 @@ def main():
     
     #feed = calendar_service.GetCalendarEventFeed()
 
-    start_date = datetime.datetime.today() - datetime.timedelta(calendar_query_back_days)
-    end_date = datetime.datetime.today() + datetime.timedelta(calendar_query_forward_days)
+    today = datetime.datetime.today()
+
+    start_date = today - datetime.timedelta(calendar_query_back_days)
+    end_date = today + datetime.timedelta(calendar_query_forward_days)
     feed = DateRangeQuery(calendar_service, start_date=start_date, end_date=end_date, max_results=10000)
     
     for i, an_event in enumerate(feed.entry):
@@ -187,6 +191,11 @@ def main():
   
     #example_file = open(example_file_name)
     #file_contents = example_file.read()
+
+#calendar_url = "http://www.aukweb.net/events/?From=13%2F02%2F2011&To=24&Days=&Category=&Dist_min=&Dist_max=&Aaa=&Region="
+
+    calendar_url = calendar_url_template % today.strftime("%d%%2F%m%%2F%Y")
+
     url_obj = urlopen(calendar_url)
     file_contents = url_obj.read()
 
